@@ -138,9 +138,9 @@ bool ViR2::Shader::init() {
 	normalLocation = glGetAttribLocation(program, "in_Normal");
 	texCoordLocation = glGetAttribLocation(program, "in_Texcoord");
 	
-	std::cout << "in_Position " << posLocation << std::endl;
+	/*std::cout << "in_Position " << posLocation << std::endl;
 	std::cout << "in_Normal " << normalLocation << std::endl;
-	std::cout << "in_Texcoord " << texCoordLocation << std::endl;
+	std::cout << "in_Texcoord " << texCoordLocation << std::endl;*/
 
 	texSamplerLocation = glGetUniformLocation(program, "texSampler");
 

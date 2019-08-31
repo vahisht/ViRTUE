@@ -3,27 +3,6 @@
 GlobalOpenglData globalOpenglData = GlobalOpenglData(); // Init OpenGL global data structure
 GlobalVRData globalVRData = GlobalVRData(); // Init OpenGL global data structure
 
-int w_width, w_height, w_pos_x, w_pos_y;
-
-vr::TrackedDevicePose_t tracked_device_pose[vr::k_unMaxTrackedDeviceCount];
-glm::mat4 tracked_device_pose_matrix[vr::k_unMaxTrackedDeviceCount];
-
-ViR2::Shader testingShader, passthroughShader, skyboxShader;
-ViR2::MeshGeometry testingGeometry, fullscreenQuad;
-
-ViR2::MeshGeometry VR_devices_models[vr::k_unMaxTrackedDeviceCount];
-
-ViR2::RenderObject testingObject;
-ViR2::FullScreenQuadObject fullscreen;
-ViR2::SkyboxObject skybox;
-
-const float screenCoords[] = {
-		-1.0f, -1.0f,
-		1.0f, -1.0f,
-		-1.0f,  1.0f,
-		1.0f,  1.0f
-};
-
 
 std::string GetTrackedDeviceString(vr::IVRSystem *pHmd, vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError *peError = NULL)
 {
@@ -116,8 +95,8 @@ bool setup_render_model(vr::TrackedDeviceIndex_t tracked_device) {
 		return false;
 	}
 
-	VR_devices_models[tracked_device] = ViR2::MeshGeometry(model, rm_texture, &testingShader);
-	globalVRData.VR_devices[tracked_device] = new ViR2::RenderObject(&VR_devices_models[tracked_device], &testingShader);
+	globalVRData.VR_devices_models[tracked_device] = ViR2::MeshGeometry(model, rm_texture, &globalOpenglData.testingShader);
+	globalVRData.VR_devices[tracked_device] = new ViR2::RenderObject(&globalVRData.VR_devices_models[tracked_device], &globalOpenglData.testingShader);
 
 
 	vr::VRRenderModels()->FreeRenderModel(model);
@@ -210,7 +189,7 @@ int initSDL() {
 	/*SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);*/
 
-	globalOpenglData.mainWindow = SDL_CreateWindow("Hello world VR", w_pos_x, w_pos_y, w_width, w_height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+	globalOpenglData.mainWindow = SDL_CreateWindow("Hello world VR", globalOpenglData.w_pos_x, globalOpenglData.w_pos_y, globalOpenglData.w_width, globalOpenglData.w_height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
 	if (globalOpenglData.mainWindow == NULL) {
 		SDL_Log("Unable to create SDL Window: %s", SDL_GetError());
 		SDL_Quit();
@@ -259,33 +238,19 @@ int initOpenGL() {
 		return -1;
 	}
 
-	glViewport(0, 0, w_width, w_height);
+	glViewport(0, 0, globalOpenglData.w_width, globalOpenglData.w_height);
 
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
-
 	{
 
-		std::cout << "Initializing shaders" << std::endl;
-		testingShader = ViR2::Shader("shader/shader.vert","shader/shader.frag");
-		passthroughShader = ViR2::Shader("shader/pass_tex.vert", "shader/pass_tex.frag");
-		skyboxShader = ViR2::Shader("shader/skybox.vert", "shader/skybox.frag");
-
-		testingShader.init();
-		passthroughShader.init();
-		skyboxShader.init();
-
-		testingGeometry = ViR2::MeshGeometry("models/teddy.obj", &testingShader);
-		fullscreenQuad = ViR2::MeshGeometry(screenCoords, sizeof(screenCoords), &passthroughShader);
-
-		testingObject = ViR2::RenderObject(&testingGeometry, &testingShader);
-		fullscreen = ViR2::FullScreenQuadObject(&fullscreenQuad, &passthroughShader, &(globalVRData.l_tex_color_buffer) );
-		skybox = ViR2::SkyboxObject(&fullscreenQuad, &skyboxShader, "data/skybox/nightsky");
-
-		testingObject.move(glm::vec3(-3.0f, 1.0f, 0.0f));
-
+		globalOpenglData.passthroughShader = ViR2::Shader("shader/pass_tex.vert", "shader/pass_tex.frag");
+		globalOpenglData.passthroughShader.init();
+		globalOpenglData.fullscreenQuad = ViR2::MeshGeometry(screenCoords, sizeof(screenCoords), &globalOpenglData.passthroughShader);
+		globalOpenglData.fullscreen = ViR2::FullScreenQuadObject(&globalOpenglData.fullscreenQuad, &globalOpenglData.passthroughShader, &(globalVRData.l_tex_color_buffer));
+	
 	}
 
 	return success;
@@ -398,8 +363,8 @@ bool ViR2::Init()
 	globalVRData.vr_render_models = NULL;
 	globalVRData.vr_compositor = NULL;
 
-	w_width = 1200; w_height = 900;
-	w_pos_x = 100; w_pos_y = 100;
+	globalOpenglData.w_width = 1200; globalOpenglData.w_height = 900;
+	globalOpenglData.w_pos_x = 100; globalOpenglData.w_pos_y = 100;
 
 	globalVRData.base_stations_count = 0;
 
@@ -408,7 +373,7 @@ bool ViR2::Init()
 
 	for (int nDevice = 0; nDevice < vr::k_unMaxTrackedDeviceCount; nDevice++)
 	{
-		tracked_device_pose_matrix[nDevice] = glm::mat4(1.0);
+		globalVRData.tracked_device_pose_matrix[nDevice] = glm::mat4(1.0);
 	}
 
 	globalVRData.m_strDriver = "No Driver";
@@ -419,8 +384,11 @@ bool ViR2::Init()
 #ifndef _NON_VR_VERSION_ONLY
 	if (initOpenVR() == -1) return -1;
 #else
-	globalVRData.projection_matrix_left = glm::perspective( glm::radians(60.0f), float(w_width)/float(w_height), 0.1f, 100.f );
-	globalVRData.view_matrix_left = glm::lookAt(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(-3.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));;
+	globalVRData.projection_matrix_left = glm::perspective( glm::radians(60.0f), float(globalOpenglData.w_width)/float(globalOpenglData.w_height), 0.1f, 100.f );
+	globalVRData.view_matrix_left = glm::lookAt(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(-3.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	std::string strWindowTitle = "openvr_main - NON-VR version";
+	SDL_SetWindowTitle(globalOpenglData.mainWindow, strWindowTitle.c_str());
 #endif
 	return true;
 }
@@ -535,19 +503,19 @@ void ViR2::handleEvents()
 			process_vr_event(vr_event);
 		}
 
-		vr::VRCompositor()->WaitGetPoses(tracked_device_pose, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+		vr::VRCompositor()->WaitGetPoses(globalVRData.tracked_device_pose, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 
 		for (int nDevice = 0; nDevice < vr::k_unMaxTrackedDeviceCount; nDevice++)
 		{
-			if (tracked_device_pose[nDevice].bPoseIsValid)
+			if (globalVRData.tracked_device_pose[nDevice].bPoseIsValid)
 			{
-				tracked_device_pose_matrix[nDevice] = convert_SteamVRMat_to_GLMMat(tracked_device_pose[nDevice].mDeviceToAbsoluteTracking);
+				globalVRData.tracked_device_pose_matrix[nDevice] = convert_SteamVRMat_to_GLMMat(globalVRData.tracked_device_pose[nDevice].mDeviceToAbsoluteTracking);
 			}
 		}
 
-		if (tracked_device_pose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
+		if (globalVRData.tracked_device_pose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
 		{
-			globalVRData.hmd_pose_matrix = tracked_device_pose_matrix[vr::k_unTrackedDeviceIndex_Hmd];
+			globalVRData.hmd_pose_matrix = globalVRData.tracked_device_pose_matrix[vr::k_unTrackedDeviceIndex_Hmd];
 		}
 	}
 
@@ -568,13 +536,13 @@ void ViR2::handleEvents()
 				break;
 			case SDLK_r: {
 				// Cover with red and update
-				testingObject.rotate((-20.0f*M_PI)/180.0f);
+				//testingObject.rotate((-20.0f*M_PI)/180.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 				break;
 			}
 			case SDLK_g: {
 				// Cover with green and update
-				testingObject.rotate((20.0f*M_PI) / 180.0f);
+				//testingObject.rotate((20.0f*M_PI) / 180.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 				break;
 			}
@@ -589,103 +557,42 @@ void ViR2::handleEvents()
 	}
 }
 
-void ViR2::draw()
-{
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
-#ifndef _NON_VR_VERSION_ONLY
-
-	//////////////////////////////////////////////
-	// Render left eye...
-
-	glBindFramebuffer(GL_FRAMEBUFFER, globalVRData.l_frame_buffer);
-	glViewport(0, 0, globalVRData.render_width, globalVRData.render_height);
-	glEnable(GL_DEPTH_TEST);
-
-	// Make our background white
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	skybox.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left * glm::inverse(globalVRData.hmd_pose_matrix), glm::mat4(1.0f));
-	testingObject.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left * glm::inverse(globalVRData.hmd_pose_matrix), glm::mat4(1.0f));
-
-	//glDisable(GL_DEPTH_TEST);
-	for (int rm_id=0; rm_id<vr::k_unMaxTrackedDeviceCount; rm_id++)
-	{
-		if (globalVRData.VR_devices[rm_id] != NULL)
-		{
-			globalVRData.VR_devices[rm_id]->draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left * glm::inverse(globalVRData.hmd_pose_matrix), tracked_device_pose_matrix[rm_id]);
-		}
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	//////////////////////////////////////////////
-	// Render right eye...
-
-	glBindFramebuffer(GL_FRAMEBUFFER, globalVRData.r_frame_buffer);
-	glViewport(0, 0, globalVRData.render_width, globalVRData.render_height);
-	glEnable(GL_DEPTH_TEST);
-
-	// Make our background white
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	skybox.draw(globalVRData.projection_matrix_right, globalVRData.view_matrix_right * glm::inverse(globalVRData.hmd_pose_matrix), glm::mat4(1.0f));
-	testingObject.draw(globalVRData.projection_matrix_right, globalVRData.view_matrix_right * glm::inverse(globalVRData.hmd_pose_matrix), glm::mat4(1.0f));
-
-	//glDisable(GL_DEPTH_TEST);
+void ViR2::drawVRdevices( glm::mat4 Pmat, glm::mat4 Vmat ) {
 	for (int rm_id = 0; rm_id < vr::k_unMaxTrackedDeviceCount; rm_id++)
 	{
 		if (globalVRData.VR_devices[rm_id] != NULL)
 		{
-			globalVRData.VR_devices[rm_id]->draw(globalVRData.projection_matrix_right, globalVRData.view_matrix_right * glm::inverse(globalVRData.hmd_pose_matrix), tracked_device_pose_matrix[rm_id]);
+			globalVRData.VR_devices[rm_id]->draw(Pmat, Vmat * glm::inverse(globalVRData.hmd_pose_matrix), globalVRData.tracked_device_pose_matrix[rm_id]);
 		}
 	}
+}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	// Submit render buffers to HMD
-
+void ViR2::submitRenderedToHMD() {
 	vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)globalVRData.l_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 	vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
 	vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)globalVRData.r_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 	vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture);
+}
 
-	/////////////////////////////////////////////
-	// Render what companion window will show
-	// In this case we render what left eye is actually seeing
-	
+void ViR2::renderEyeToScreen() {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glEnable(GL_DEPTH_TEST);
-	glViewport(0, 0, w_width, w_height);
+	glViewport(0, 0, globalOpenglData.w_width, globalOpenglData.w_height);
 	glClearColor(0.1f, 0.1f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	fullscreen.draw(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+	globalOpenglData.fullscreen.draw(glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f));
+}
 
+void ViR2::checkOpenGLErrors() {
 	GLenum err;
 	while ((err = glGetError()) != GL_NO_ERROR)
 	{
 		std::cout << err << std::endl;
 	}
-
-#else 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, w_width, w_height);
-	glEnable(GL_DEPTH_TEST);
-
-	// Make our background white
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	skybox.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left, glm::mat4(1.0f));
-	testingObject.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left, glm::mat4(1.0f));
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-#endif
-
-	// Swap our buffers to make our changes visible
-	SDL_GL_SwapWindow( globalOpenglData.mainWindow );
-	
 }
+
 
 void ViR2::Cleanup()
 {

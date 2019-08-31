@@ -26,8 +26,13 @@ struct GlobalOpenglData {
 
 	// Opengl context handle
 	SDL_GLContext mainContext;
+	int w_width, w_height, w_pos_x, w_pos_y;
 
 	bool loop;
+
+	ViR2::Shader testingShader, passthroughShader;
+	ViR2::MeshGeometry fullscreenQuad;
+	ViR2::FullScreenQuadObject fullscreen;
 
 	GlobalOpenglData() { loop = true; };
 };
@@ -57,6 +62,11 @@ struct GlobalVRData {
 
 	ViR2::RenderObject* VR_devices[ vr::k_unMaxTrackedDeviceCount ];
 
+	vr::TrackedDevicePose_t tracked_device_pose[vr::k_unMaxTrackedDeviceCount];
+	glm::mat4 tracked_device_pose_matrix[vr::k_unMaxTrackedDeviceCount];
+
+	ViR2::MeshGeometry VR_devices_models[vr::k_unMaxTrackedDeviceCount];
+
 	GlobalVRData() { 
 		base_stations_count = 0;
 		vr_context = NULL;
@@ -67,6 +77,13 @@ struct GlobalVRData {
 extern GlobalVRData globalVRData;
 
 
+const float screenCoords[] = {
+		-1.0f, -1.0f,
+		1.0f, -1.0f,
+		-1.0f,  1.0f,
+		1.0f,  1.0f
+};
+
 namespace ViR2 {
 
 	bool Init();
@@ -74,8 +91,14 @@ namespace ViR2 {
 	void PrintSDL_GL_Attributes();
 	void CheckSDLError(int line);
 	void handleEvents();
-	void draw();
+	//void draw();
 	void Cleanup();
+	void drawVRdevices(glm::mat4 Pmat, glm::mat4 Vmat);
+
+	void submitRenderedToHMD();
+	void renderEyeToScreen();
+
+	void checkOpenGLErrors();
 
 }
 
