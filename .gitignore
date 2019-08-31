@@ -10,5 +10,4 @@ lightbox.obj
 controller.obj
 include/*
 !include/.gitkeep
-*.filters
 *.user
