@@ -298,8 +298,9 @@ int initOpenVR() {
 		std::cout << "An HMD was successfully found in the system" << std::endl;
 
 		if (vr::VR_IsRuntimeInstalled()) {
-			const char* runtime_path = vr::VR_RuntimePath();
-			std::cout << "Runtime correctly installed at '" << runtime_path << "'" << std::endl;
+			/*const char* runtime_path;//= vr::VR_RuntimePath();
+			vr::VR_GetRuntimePath(runtime_path,);*/
+			std::cout << "Runtime correctly installed" << std::endl;
 		}
 		else
 		{
