@@ -413,9 +413,14 @@ bool ViR2::Init()
 	globalVRData.m_strDriver = "No Driver";
 	globalVRData.m_strDisplay = "No Display";
 
-	if ((initSDL() == -1) || (initOpenGL() == -1) || (initOpenVR() == -1))
-		return -1;
-
+	if (initSDL() == -1) return -1;
+	if (initOpenGL() == -1) return -1;
+#ifndef _NON_VR_VERSION_ONLY
+	if (initOpenVR() == -1) return -1;
+#else
+	globalVRData.projection_matrix_left = glm::perspective( glm::radians(60.0f), float(w_width)/float(w_height), 0.1f, 100.f );
+	globalVRData.view_matrix_left = glm::lookAt(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(-3.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));;
+#endif
 	return true;
 }
 
@@ -587,6 +592,8 @@ void ViR2::draw()
 {
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
+#ifndef _NON_VR_VERSION_ONLY
+
 	//////////////////////////////////////////////
 	// Render left eye...
 
@@ -659,6 +666,20 @@ void ViR2::draw()
 	{
 		std::cout << err << std::endl;
 	}
+
+#else 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, w_width, w_height);
+	glEnable(GL_DEPTH_TEST);
+
+	// Make our background white
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	skybox.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left, glm::mat4(1.0f));
+	testingObject.draw(globalVRData.projection_matrix_left, globalVRData.view_matrix_left, glm::mat4(1.0f));
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#endif
 
 	// Swap our buffers to make our changes visible
 	SDL_GL_SwapWindow( globalOpenglData.mainWindow );

@@ -2,6 +2,8 @@
 #define _ViR2_OPENGL
 
 
+#define _NON_VR_VERSION_ONLY
+
 #define SDL_MAIN_HANDLED // SDL2 has it's on "main" function that would cause collision with our main during compilation
 #define M_PI 3.14159265359
 

@@ -8,7 +8,6 @@
  * DCGI FEE CTU (@CVUTFEL)
 */
 
-
 #include <iostream>
 #include <string>
 #include <ViR2_opengl.hpp>

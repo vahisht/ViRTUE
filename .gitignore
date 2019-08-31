@@ -1,12 +1,14 @@
 .vscode
 .vs
 /bin/*
+!/bin/.gitkeep
 Release
 Debug
 x64
 1.obj
 lightbox.obj
 controller.obj
-include/*/
+include/*
+!include/.gitkeep
 *.filters
 *.user
