@@ -266,7 +266,7 @@ ViR2::SkyboxObject::SkyboxObject(MeshGeometry* _model, Shader* _shader, std::str
 
 };
 
-bool ViR2::RenderObject::rotate(float angle) {
+bool ViR2::RenderObject::rotate(glm::vec3 angle) {
 	rotation += angle;
 
 	return true;
@@ -278,16 +278,40 @@ bool ViR2::RenderObject::move(glm::vec3 movement) {
 	return true;
 }
 
-void ViR2::RenderObject::draw(glm::mat4 P, glm::mat4 V, glm::mat4 M ) {
+void ViR2::RenderObject::draw(glm::mat4 P, glm::mat4 V, glm::mat4 M, glm::mat4 V_other) {
 	shader->useProgram();
 
-	glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), rotation , glm::vec3(0.0f, 1.0f, 0.0f) );
-	modelMat = glm::translate(modelMat, position);
+	//glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), rotation , glm::vec3(0.0f, 1.0f, 0.0f) );
+	glm::mat4 modelMat = glm::translate(glm::mat4(1.0f), position);
+	modelMat = glm::rotate(modelMat, rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+	modelMat = glm::rotate(modelMat, rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+	modelMat = glm::rotate(modelMat, rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
 
 	glm::mat4 PVM = P * V * M * modelMat;
 	glUniformMatrix4fv(shader->getPVMmatrixLocation(), 1, GL_FALSE, glm::value_ptr(PVM));
 	glUniformMatrix4fv(shader->getMmatrixLocation(), 1, GL_FALSE, glm::value_ptr(M * modelMat));
 	//glUniformMatrix4fv(testingShader.getVmatrixLocation(), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	//std::cout << "Focal length: " << P[0][0] << std::endl;
+
+	glm::mat3 rotMat(V);
+	glm::vec3 d(V[3]);
+
+	glm::vec3 retVec = -d * rotMat;
+	//std::cout << "Camera pos: " << retVec[0] << " " << retVec[1] << " " << retVec[2] << std::endl;
+
+	glm::mat3 rotMat2(V_other);
+	glm::vec3 d2(V_other[3]);
+
+	glm::vec3 retVec2 = -d2 * rotMat2;
+	//std::cout << "Camera pos other: " << retVec2[0] << " " << retVec2[1] << " " << retVec2[2] << std::endl;
+
+	float dist = glm::distance(retVec, retVec2);
+	//std::cout << "Camera distance: " << dist << std::endl;
+
+	glUniform1f(shader->getUniformLocation("focalLength"), P[0][0]);
+	glUniform1f(shader->getUniformLocation("baseline"), dist);
+
 
 	if ( model->hasTexture ) {
 		glActiveTexture(GL_TEXTURE0);

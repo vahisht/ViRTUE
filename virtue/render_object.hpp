@@ -47,17 +47,17 @@ namespace ViR2 {
 			RenderObject(MeshGeometry* _model, Shader* _shader);
 			~RenderObject() {}
 
-			virtual void draw(glm::mat4 P, glm::mat4 V, glm::mat4 M);
+			virtual void draw(glm::mat4 P, glm::mat4 V, glm::mat4 M, glm::mat4 V_other);
 			//virtual void drawIndexed(glm::mat4 P, glm::mat4 V, glm::mat4 M);
 			bool move(glm::vec3 movement);
-			bool rotate(float angle);
+			bool rotate(glm::vec3 angle);
 
         protected:
 			Shader* shader = NULL;
 			MeshGeometry* model = NULL;
 
 			glm::vec3 position = glm::vec3(0.0f);
-			float rotation = 0.0f;
+			glm::vec3 rotation = glm::vec3(0.0f);
             
 	};
 

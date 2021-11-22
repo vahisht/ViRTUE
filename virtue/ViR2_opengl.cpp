@@ -112,7 +112,7 @@ bool setup_render_model(vr::TrackedDeviceIndex_t tracked_device) {
 
 }
 
-bool setup_frame_buffer(GLsizei width, GLsizei height, GLuint &frame_buffer, GLuint &render_buffer_depth_stencil, GLuint &tex_color_buffer) {
+bool setup_frame_buffer(GLsizei width, GLsizei height, GLuint &frame_buffer, GLuint &render_buffer_depth_stencil, GLuint &tex_color_buffer, GLuint& aux_tex_color_buffer) {
 
 
 
@@ -132,15 +132,38 @@ bool setup_frame_buffer(GLsizei width, GLsizei height, GLuint &frame_buffer, GLu
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_color_buffer, 0); // The second parameter implies that you can have multiple color attachments. A fragment shader can output
 																									  // different data to any of these by linking 'out' variables to attachments with the glBindFragDataLocation function
 
+	glGenTextures(1, &aux_tex_color_buffer);
+	glBindTexture(GL_TEXTURE_2D, aux_tex_color_buffer);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Attach the image to the framebuffer
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, aux_tex_color_buffer, 0);
+
 	// Create the render buffer to host the depth and stencil buffers
 	// Although we could do this by creating another texture, it is more efficient to store these buffers in a Renderbuffer Object, because we're only interested in reading the color buffer in a shader
-	glGenRenderbuffers(1, &render_buffer_depth_stencil);
+	/*glGenRenderbuffers(1, &render_buffer_depth_stencil);
 	glBindRenderbuffer(GL_RENDERBUFFER, render_buffer_depth_stencil);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 
 	// Attach the render buffer to the framebuffer
 	// NOTE: Even if you don't plan on reading from this depth_attachment, an off screen buffer that will be rendered to should have a depth attachment
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, render_buffer_depth_stencil);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, render_buffer_depth_stencil);*/
+
+	glGenTextures(1, &render_buffer_depth_stencil);
+	glBindTexture(GL_TEXTURE_2D, render_buffer_depth_stencil);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, render_buffer_depth_stencil, 0);
 
 	// Check whether the frame buffer is complete (at least one buffer attached, all attachmentes are complete, all attachments same number multisamples)
 	(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) ? std::cout << "The frame buffer is complete!" << std::endl : std::cout << "The frame buffer is invalid, please re-check. Code: " << glCheckFramebufferStatus(frame_buffer) << std::endl;
@@ -150,7 +173,8 @@ bool setup_frame_buffer(GLsizei width, GLsizei height, GLuint &frame_buffer, GLu
 
 glm::mat4 get_projection_matrix(const vr::Hmd_Eye eye)
 {
-	vr::HmdMatrix44_t steamvr_proj_matrix = globalVRData.vr_context->GetProjectionMatrix(eye, 0.1f, 15.f);
+	vr::HmdMatrix44_t steamvr_proj_matrix = globalVRData.vr_context->GetProjectionMatrix(eye, 0.1f, 15.0f);
+	std::cout << "Focal length: " << steamvr_proj_matrix.m[0][0] << std::endl;
 
 	return glm::mat4(steamvr_proj_matrix.m[0][0], steamvr_proj_matrix.m[1][0], steamvr_proj_matrix.m[2][0], steamvr_proj_matrix.m[3][0],
 		steamvr_proj_matrix.m[0][1], steamvr_proj_matrix.m[1][1], steamvr_proj_matrix.m[2][1], steamvr_proj_matrix.m[3][1],
@@ -250,6 +274,7 @@ int initOpenGL() {
 		globalOpenglData.passthroughShader.init();
 		globalOpenglData.fullscreenQuad = ViR2::MeshGeometry(screenCoords, sizeof(screenCoords), &globalOpenglData.passthroughShader);
 		globalOpenglData.fullscreen = ViR2::FullScreenQuadObject(&globalOpenglData.fullscreenQuad, &globalOpenglData.passthroughShader, &(globalVRData.l_tex_color_buffer));
+		//globalOpenglData.fullscreen = ViR2::FullScreenQuadObject(&globalOpenglData.fullscreenQuad, &globalOpenglData.passthroughShader, &(globalVRData.l_render_buffer_depth_stencil));
 	
 	}
 
@@ -323,11 +348,11 @@ int initOpenVR() {
 	}
 
 	// Check whether both base stations are found
-	if (globalVRData.base_stations_count < 2)
+	/*if (globalVRData.base_stations_count < 2)
 	{
-		std::cout << "There was a problem indentifying the base stations, please check they are powered on" << std::endl;
+		std::cout << "There was a problem identifying the base stations, please check they are powered on" << std::endl;
 		return -1;
-	}
+	}*/
 
 	if (!(globalVRData.vr_compositor = vr::VRCompositor()))
 	{
@@ -342,11 +367,11 @@ int initOpenVR() {
 	std::cout << "Recommended render targer size is " << globalVRData.render_width << "x" << globalVRData.render_height << std::endl;
 
 	std::cout << "Setting up left eye frame buffer..." << std::endl;
-	if (!setup_frame_buffer(globalVRData.render_width, globalVRData.render_height, globalVRData.l_frame_buffer, globalVRData.l_render_buffer_depth_stencil, globalVRData.l_tex_color_buffer)) return -1;
+	if (!setup_frame_buffer(globalVRData.render_width, globalVRData.render_height, globalVRData.l_frame_buffer, globalVRData.l_render_buffer_depth_stencil, globalVRData.l_tex_color_buffer, globalVRData.l_aux_tex_color_buffer)) return -1;
 	std::cout << "Left eye frame buffer setup completed!" << std::endl;
 
 	std::cout << "Setting up right eye frame buffer..." << std::endl;
-	if (!setup_frame_buffer(globalVRData.render_width, globalVRData.render_height, globalVRData.r_frame_buffer, globalVRData.r_render_buffer_depth_stencil, globalVRData.r_tex_color_buffer)) return -1;
+	if (!setup_frame_buffer(globalVRData.render_width, globalVRData.render_height, globalVRData.r_frame_buffer, globalVRData.r_render_buffer_depth_stencil, globalVRData.r_tex_color_buffer, globalVRData.r_aux_tex_color_buffer)) return -1;
 	std::cout << "Right eye frame buffer setup completed!" << std::endl;
 
 	globalVRData.projection_matrix_left = get_projection_matrix(vr::Hmd_Eye::Eye_Left);
@@ -363,7 +388,7 @@ bool ViR2::Init()
 	globalVRData.vr_render_models = NULL;
 	globalVRData.vr_compositor = NULL;
 
-	globalOpenglData.w_width = 1200; globalOpenglData.w_height = 900;
+	globalOpenglData.w_width = 1116; globalOpenglData.w_height = 1234;
 	globalOpenglData.w_pos_x = 100; globalOpenglData.w_pos_y = 100;
 
 	globalVRData.base_stations_count = 0;
@@ -389,6 +414,10 @@ bool ViR2::Init()
 
 	std::string strWindowTitle = "openvr_main - NON-VR version";
 	SDL_SetWindowTitle(globalOpenglData.mainWindow, strWindowTitle.c_str());
+
+	std::cout << "Setting up left eye frame buffer..." << std::endl;
+	if (!setup_frame_buffer(globalOpenglData.w_width, globalOpenglData.w_height, globalVRData.l_frame_buffer, globalVRData.l_render_buffer_depth_stencil, globalVRData.l_tex_color_buffer, globalVRData.l_aux_tex_color_buffer)) return -1;
+	std::cout << "Left eye frame buffer setup completed!" << std::endl;
 #endif
 	return true;
 }
@@ -412,6 +441,61 @@ bool ViR2::SetOpenGLAttributes()
 	return true;
 }
 
+GLuint ViR2::makeTexture(cv::Mat image) {
+	GLuint texture;
+
+	// glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+	cv::flip(image, image, 0); // OpenCV stores top to bottom, but we need the image bottom to top for OpenGL.
+	cv::cvtColor(image, image, cv::COLOR_BGR2RGB); // OpenCV uses BGR format, need to convert it to RGB for OpenGL.
+
+	if (image.type() == CV_32FC3) {
+		glTexImage2D(GL_TEXTURE_2D,
+			0,
+			GL_RGB32F,
+			image.cols,
+			image.rows,
+			0,
+			GL_RGB,
+			GL_FLOAT,
+			image.ptr());
+	}
+	else if (image.type() == CV_16UC3) {
+		glTexImage2D(GL_TEXTURE_2D,
+			0,
+			GL_RGB16,
+			image.cols,
+			image.rows,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_SHORT,
+			image.ptr());
+	}
+	else {
+		glTexImage2D(GL_TEXTURE_2D,
+			0,
+			GL_RGB8,
+			image.cols,
+			image.rows,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			image.ptr());
+	}
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	ViR2::checkOpenGLErrors();
+
+	return texture;
+}
 
 void process_vr_event(const vr::VREvent_t & event)
 {
@@ -446,17 +530,17 @@ void process_vr_event(const vr::VREvent_t & event)
 	case vr::VREvent_ButtonPress:
 	{
 		vr::VREvent_Controller_t controller_data = event.data.controller;
-		std::cout << "Pressed button " << globalVRData.vr_context->GetButtonIdNameFromEnum((vr::EVRButtonId)controller_data.button) << " of device " << event.trackedDeviceIndex << " (" << str_td_class << ")" << std::endl;
+		//std::cout << "Pressed button " << globalVRData.vr_context->GetButtonIdNameFromEnum((vr::EVRButtonId)controller_data.button) << " of device " << event.trackedDeviceIndex << " (" << str_td_class << ")" << std::endl;
 
 
 		vr::VRControllerState_t controller_state;
 		vr::TrackedDevicePose_t td_pose;
 		if (globalVRData.vr_context->GetControllerStateWithPose(vr::ETrackingUniverseOrigin::TrackingUniverseStanding, event.trackedDeviceIndex, &controller_state, sizeof(controller_state), &td_pose)) {
 			if ((vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_Axis1) & controller_state.ulButtonPressed) != 0) {
-				std::cout << "Trigger button pressed!" << std::endl;
+				/*std::cout << "Trigger button pressed!" << std::endl;
 				std::cout << "Pose information" << std::endl;
 				std::cout << "  Tracking result: " << td_pose.eTrackingResult << std::endl;
-				std::cout << "  Tracking velocity: (" << td_pose.vVelocity.v[0] << "," << td_pose.vVelocity.v[1] << "," << td_pose.vVelocity.v[2] << ")" << std::endl;
+				std::cout << "  Tracking velocity: (" << td_pose.vVelocity.v[0] << "," << td_pose.vVelocity.v[1] << "," << td_pose.vVelocity.v[2] << ")" << std::endl;*/
 			}
 		}
 	}
@@ -516,6 +600,11 @@ void ViR2::handleEvents()
 		if (globalVRData.tracked_device_pose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
 		{
 			globalVRData.hmd_pose_matrix = globalVRData.tracked_device_pose_matrix[vr::k_unTrackedDeviceIndex_Hmd];
+			/*std::cout << globalVRData.hmd_pose_matrix[0][0] << " " << globalVRData.hmd_pose_matrix[0][1] << " " << globalVRData.hmd_pose_matrix[0][2] << " " << globalVRData.hmd_pose_matrix[0][3] << std::endl;
+			std::cout << globalVRData.hmd_pose_matrix[1][0] << " " << globalVRData.hmd_pose_matrix[1][1] << " " << globalVRData.hmd_pose_matrix[1][2] << " " << globalVRData.hmd_pose_matrix[1][3] << std::endl;
+			std::cout << globalVRData.hmd_pose_matrix[2][0] << " " << globalVRData.hmd_pose_matrix[2][1] << " " << globalVRData.hmd_pose_matrix[2][2] << " " << globalVRData.hmd_pose_matrix[2][3] << std::endl;
+			std::cout << globalVRData.hmd_pose_matrix[3][0] << " " << globalVRData.hmd_pose_matrix[3][1] << " " << globalVRData.hmd_pose_matrix[3][2] << " " << globalVRData.hmd_pose_matrix[3][3] << std::endl;
+			std::cout << "------" << std::endl;*/
 		}
 	}
 
@@ -546,8 +635,57 @@ void ViR2::handleEvents()
 				glClear(GL_COLOR_BUFFER_BIT);
 				break;
 			}
+			case SDLK_u: {
+				globalVRData.algorithm_selected = (globalVRData.algorithm_selected + 1) % globalVRData.algorithms.size();
+				refreshDisplayedTexture();
+				break;
+			}
+			case SDLK_i: {
+				globalVRData.style_selected = (globalVRData.style_selected + 1) % globalVRData.style.size();
+				refreshDisplayedTexture();
+				break;
+			}
+			case SDLK_o: {
+				globalVRData.scene_selected = (globalVRData.scene_selected + 1) % globalVRData.scene.size();
+				refreshDisplayedTexture();
+				break;
+			}
+			case SDLK_j: {
+				globalVRData.algorithm_selected--;
+				if (globalVRData.algorithm_selected < 0) globalVRData.algorithm_selected = globalVRData.algorithms.size() - 1;
+				refreshDisplayedTexture();
+				break;
+			}
+			case SDLK_k: {
+				globalVRData.style_selected--;
+				if (globalVRData.style_selected < 0) globalVRData.style_selected = globalVRData.style.size() - 1;
+				refreshDisplayedTexture();
+				break;
+			}
+			case SDLK_l: {
+				globalVRData.scene_selected--;
+				if (globalVRData.scene_selected < 0) globalVRData.scene_selected = globalVRData.scene.size() - 1;
+				refreshDisplayedTexture();
+				break;
+			}
 			case SDLK_b: {
-				glClear(GL_COLOR_BUFFER_BIT);
+				break;
+			}
+			case SDLK_SPACE: {
+				std::cout << "Saving screenshots..." << std::endl;
+
+				cv::Mat screenshot = ViR2::get_ocv_img_from_gl_img(globalVRData.l_tex_color_buffer);
+				cv::imwrite("left" + std::to_string(globalVRData.screenshot_count) + ".png", screenshot);
+				screenshot = ViR2::get_ocv_img_from_gl_img(globalVRData.l_aux_tex_color_buffer);
+				cv::imwrite("left_" + std::to_string(globalVRData.screenshot_count) + "_disparity.png", screenshot);
+
+				screenshot = ViR2::get_ocv_img_from_gl_img(globalVRData.r_tex_color_buffer);
+				cv::imwrite("right_" + std::to_string(globalVRData.screenshot_count) + ".png", screenshot);
+				screenshot = ViR2::get_ocv_img_from_gl_img(globalVRData.r_aux_tex_color_buffer);
+				cv::imwrite("right_" + std::to_string(globalVRData.screenshot_count) + "_disparity.png", screenshot);
+
+				globalVRData.screenshot_count++;
+
 				break;
 			}
 			default:
@@ -559,16 +697,25 @@ void ViR2::handleEvents()
 
 
 void ViR2::drawVRdevices( glm::mat4 Pmat, glm::mat4 Vmat ) {
+	//std::cout << vr::k_unMaxTrackedDeviceCount << std::endl;
 	for (int rm_id = 0; rm_id < vr::k_unMaxTrackedDeviceCount; rm_id++)
 	{
 		if (globalVRData.VR_devices[rm_id] != NULL)
 		{
-			globalVRData.VR_devices[rm_id]->draw(Pmat, Vmat * glm::inverse(globalVRData.hmd_pose_matrix), globalVRData.tracked_device_pose_matrix[rm_id]);
+			globalVRData.VR_devices[rm_id]->draw(Pmat, Vmat * glm::inverse(globalVRData.hmd_pose_matrix), globalVRData.tracked_device_pose_matrix[rm_id], glm::mat4(1.0f));
 		}
 	}
 }
 
 void ViR2::submitRenderedToHMD() {
+	vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)globalVRData.l_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+	vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
+	vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)globalVRData.r_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+	vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture);
+}
+
+void ViR2::renderImagesToHMD() {
+
 	vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)globalVRData.l_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 	vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture);
 	vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)globalVRData.r_tex_color_buffer, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
@@ -589,6 +736,7 @@ void ViR2::checkOpenGLErrors() {
 	GLenum err;
 	while ((err = glGetError()) != GL_NO_ERROR)
 	{
+		std::cout << "OpenGL error! : ";
 		std::cout << err << std::endl;
 	}
 }
@@ -629,4 +777,48 @@ void ViR2::PrintSDL_GL_Attributes()
 
 	SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &value);
 	std::cout << "SDL_GL_CONTEXT_MINOR_VERSION: " << value << std::endl;
+}
+
+cv::Mat ViR2::get_ocv_img_from_gl_depth(GLuint ogl_texture_id)
+{
+	glBindTexture(GL_TEXTURE_2D, ogl_texture_id);
+	GLenum gl_texture_width, gl_texture_height;
+
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, (GLint*)&gl_texture_width);
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, (GLint*)&gl_texture_height);
+
+	unsigned char* gl_texture_bytes = (unsigned char*)malloc(sizeof(unsigned char) * gl_texture_width * gl_texture_height);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, gl_texture_bytes);
+
+	cv::Mat image = cv::Mat(gl_texture_height, gl_texture_width, CV_8UC1, gl_texture_bytes);
+	cv::flip(image, image, 0); // OpenCV stores top to bottom, but we need the image bottom to top for OpenGL.
+
+	return image;
+}
+
+cv::Mat ViR2::get_ocv_img_from_gl_img(GLuint ogl_texture_id)
+{
+	glBindTexture(GL_TEXTURE_2D, ogl_texture_id);
+	GLenum gl_texture_width, gl_texture_height;
+
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, (GLint*)&gl_texture_width);
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, (GLint*)&gl_texture_height);
+
+	unsigned char* gl_texture_bytes = (unsigned char*)malloc(sizeof(unsigned char) * gl_texture_width * gl_texture_height * 3);
+	glGetTexImage(GL_TEXTURE_2D, 0 /* mipmap level */, GL_BGR, GL_UNSIGNED_BYTE, gl_texture_bytes);
+
+	cv::Mat image = cv::Mat(gl_texture_height, gl_texture_width, CV_8UC3, gl_texture_bytes);
+	cv::flip(image, image, 0); // OpenCV stores top to bottom, but we need the image bottom to top for OpenGL.
+
+	return image;
+}
+
+void ViR2::refreshDisplayedTexture() {
+	std::cout << "Printing: " << globalVRData.algorithms[globalVRData.algorithm_selected] << " method, scene: " << globalVRData.scene[globalVRData.scene_selected] << ", style: " << globalVRData.style[globalVRData.style_selected] << std::endl;
+
+	// Hijack the buffers
+	cv::Mat image_left = cv::imread("screens/" + globalVRData.algorithms[globalVRData.algorithm_selected] + "/out_" + globalVRData.scene[globalVRData.scene_selected] + "_" + globalVRData.style[globalVRData.style_selected] + "/1.png");
+	globalVRData.l_tex_color_buffer = ViR2::makeTexture(image_left);
+	cv::Mat image_right = cv::imread("screens/" + globalVRData.algorithms[globalVRData.algorithm_selected] + "/out_" + globalVRData.scene[globalVRData.scene_selected] + "_" + globalVRData.style[globalVRData.style_selected] + "/2.png");
+	globalVRData.r_tex_color_buffer = ViR2::makeTexture(image_right);
 }

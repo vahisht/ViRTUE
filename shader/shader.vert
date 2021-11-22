@@ -20,8 +20,9 @@ out vec2 tex_Coords;
 void main(void) {
 
     gl_Position = PVMmatrix * vec4(in_Position, 1.0f);
+    //gl_Position.z *= gl_Position.w * 0.2;
  
-	normals_transformed = transpose(inverse(Mmatrix)) * vec4(in_Normal,1.0);
+	normals_transformed = normalize( transpose(inverse(Mmatrix)) * vec4(in_Normal,1.0));
 
     // Pass the color and texture coordinates on to the fragment shader
     ex_Color = vec4(in_Normal,1.0);

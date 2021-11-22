@@ -16,7 +16,7 @@ The extension currently requires following libraries
 * **SDL2**
 * **GLEW**
 
-You can either install all libraries on your PC (manually or via [vcpkg](https://github.com/microsoft/vcpkg)) or download them into the **Include** folder
+You can either install all libraries on your PC (manually or via [vcpkg](https://github.com/microsoft/vcpkg)) or download them into the **include** folder
 
 ## Authors
 

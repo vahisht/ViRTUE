@@ -38,6 +38,8 @@ namespace ViR2 {
 			GLuint getMmatrixLocation() { return MmatrixLocation; }
 			GLuint getVmatrixLocation() { return VmatrixLocation; }
 
+			GLuint getUniformLocation(std::string name) { return glGetUniformLocation(program, name.c_str());}
+
         private:
 
             GLuint program;

@@ -1,10 +1,6 @@
 #version 150
+#extension GL_ARB_explicit_attrib_location : enable
 
-// Each version of OpenGL has its own version of the shader language with availability of a certain feature set and we will be using GLSL 1.50. This version number
-// may seem a bit off when we're using OpenGL 3.2, but that's because shaders were only introduced in OpenGL 2.0 as GLSL 1.10. Starting from OpenGL 3.3, this problem
-// was solved and the GLSL version is the same as the OpenGL version
-
-// It was expressed that some drivers required this next line to function properly
 precision highp float;
 
 in vec4 ex_Color;
@@ -13,8 +9,11 @@ in vec4 normals_transformed;
 
 uniform sampler2D texSampler;
 uniform bool useTexture;
+uniform float focalLength;
+uniform float baseline;
 
-//out vec4 fragColor;
+layout(location = 0) out vec4 colorOut;
+layout(location = 1) out vec4 disparityOut;
 
 void main(void) {
     //gl_FragColor = vec4(1.0,0.5,0.5,1.0);
@@ -23,10 +22,18 @@ void main(void) {
 	//gl_FragColor = normals_transformed;
 
 	if (useTexture) {
-		gl_FragColor = texture(texSampler, tex_Coords);
+		colorOut = texture(texSampler, tex_Coords);
 	} else {
-		gl_FragColor = normals_transformed;
+		colorOut = (normals_transformed / 2.0) + vec4(0.5, 0.5, 0.5, 0.5);
 	}
+
+	float f = 15.0f;
+	float n = 0.1f;
+	float depth = gl_FragCoord.z;
+	float depth_linearized = (2.0 * n) / (f + n - depth * (f - n));
+	//disparityOut = vec4(depth_linearized);
+	//disparityOut = vec4((baseline*focalLength)/(depth));
+	disparityOut = vec4((baseline*focalLength)/(depth_linearized));
 
 	//gl_FragColor = ex_Color;
 }
